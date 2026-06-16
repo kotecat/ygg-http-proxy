@@ -82,6 +82,76 @@ urllib.request.install_opener(safe_opener)
 # --------------------------------------------------------
 
 
+def make_nginx_error_html(status_code: int, status_text: str, error_details: str, provider: str) -> str:
+    """Генерирует стильную страницу ошибки в стиле Nginx"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>{status_code} {status_text}</title>
+        <style>
+            body {{
+                background-color: #fff;
+                color: #000;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                text-align: center;
+                padding-top: 15%;
+                margin: 0;
+            }}
+            h1 {{
+                font-size: 24px;
+                font-weight: 500;
+                vertical-align: middle;
+                display: inline-block;
+                margin: 0 20px 0 0;
+                padding: 10px 20px 10px 0;
+                border-right: 1px solid rgba(0, 0, 0, 0.3);
+            }}
+            .description {{
+                display: inline-block;
+                text-align: left;
+                vertical-align: middle;
+            }}
+            .status-text {{
+                font-size: 14px;
+                font-weight: 400;
+                line-height: 24px;
+                margin: 0;
+            }}
+            .details {{
+                font-size: 12px;
+                color: #777;
+                margin: 5px 0 0 0;
+                font-family: monospace;
+            }}
+            hr {{
+                margin-top: 30px;
+                border: 0;
+                border-top: 1px solid #ddd;
+                width: 40%;
+            }}
+            .footer {{
+                font-size: 12px;
+                color: #999;
+                margin-top: 10px;
+                font-style: italic;
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>{status_code}</h1>
+        <div class="description">
+            <p class="status-text">{status_text}</p>
+            <p class="details">{error_details}</p>
+        </div>
+        <hr>
+        <div class="footer">ygg-http-proxy ({provider})</div>
+    </body>
+    </html>
+    """
+
+
 class YggProxyHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
@@ -122,7 +192,7 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
         req = urllib.request.Request(url=target_url, data=body, headers=req_headers, method=self.command)
 
         try:
-            # Запрос пойдет через наш safe_opener автоматически
+            # Запрос идет через наш safe_opener автоматически
             with urllib.request.urlopen(req, timeout=config.TIMEOUT_SECONDS) as res:
                 self.send_response(res.status)
                 for key, value in res.getheaders():
@@ -132,20 +202,58 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(res.read())
                 log_event(self.command, host_header, self.path, res.status, f"-> Ygg ({scheme}): {display_host}")
 
-        except (urllib.error.HTTPError, urllib.error.URLError) as e:
-            # Ловим ошибки сети и блокировки
-            status_code = getattr(e, 'code', 400)
-            self.send_response(status_code)
+        except urllib.error.HTTPError as e:
+            # --- ОШИБКА ОТ САМОГО САЙТА (404, 502, 403 и т.д.) ---
+            # Пытаемся проксировать оригинальный ответ ноды
+            try:
+                remote_err_page = e.read()
+                self.send_response(e.code)
+                for key, value in e.headers.items():
+                    if key.lower() != 'transfer-encoding':
+                        self.send_header(key, value)
+                self.end_headers()
+                self.wfile.write(remote_err_page)
+                log_event(self.command, host_header, self.path, e.code, f"-> Remote Node HTTP Error (Proxied)")
+            except Exception:
+                # Если не удалось прочитать тело ответа ноды, отдаем красивую 400
+                self.send_response(400)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                
+                details = f"Remote host returned HTTP {e.code}"
+                html = make_nginx_error_html(400, "Bad Request", details, "Remote Host")
+                self.wfile.write(html.encode('utf-8'))
+                log_event(self.command, host_header, self.path, 400, f"{CLR_ERR}-> Fail reading remote HTTP {e.code}{CLR_RESET}")
+
+        except (urllib.error.URLError, PermissionError) as e:
+            # --- ОШИБКА НАШЕЙ ПРОКСИ (Сайт оффлайн, упал DNS, блок чужой подсети) ---
+            self.send_response(400)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             
-            err_msg = f"<h1>{status_code} Gateway Error</h1><p>{str(e)}</p>"
-            self.wfile.write(err_msg.encode('utf-8'))
-            log_event(self.command, host_header, self.path, status_code, f"{CLR_ERR}-> Error: {e}{CLR_RESET}")
+            # Парсим причину для вывода на английском
+            reason = str(e.reason) if hasattr(e, 'reason') else str(e)
+            if "outside Yggdrasil" in reason:
+                details = "Access denied: Target IP address is outside the allowed Yggdrasil subnet."
+            elif "Name or service not known" in reason:
+                details = "DNS Resolution failed: The requested Yggdrasil domain does not exist."
+            else:
+                details = f"Proxy connection failed: {reason}"
+                
+            html = make_nginx_error_html(400, "Bad Request", details, "Proxy Server")
+            self.wfile.write(html.encode('utf-8'))
+            log_event(self.command, host_header, self.path, 400, f"{CLR_ERR}-> Proxy Handled Error: {reason}{CLR_RESET}")
 
         except Exception as e:
+            # --- КРИТИЧЕСКИЙ СБОЙ ВНУТРИ КОДА ПРОКСИ ---
             self.send_response(400)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            log_event(self.command, host_header, self.path, 400, f"{CLR_ERR}-> {type(e).__name__}: {e}{CLR_RESET}")
+            
+            details = f"Internal proxy exception: {type(e).__name__}"
+            html = make_nginx_error_html(400, "Bad Request", details, "Proxy Server Core")
+            self.wfile.write(html.encode('utf-8'))
+            log_event(self.command, host_header, self.path, 400, f"{CLR_ERR}-> Internal Exception: {e}{CLR_RESET}")
 
     def do_GET(self): self.handle_proxy()
     def do_POST(self): self.handle_proxy()
