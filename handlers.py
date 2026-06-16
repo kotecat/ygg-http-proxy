@@ -55,20 +55,29 @@ class SafeYggDirector(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
         if not host:
             raise urllib.error.URLError("No host intended")
 
-        clean_host = host.split(':')[0].strip("[]")
+        # Правильно отделяем порт от IPv6 (в IPv6 порт идёт ПОСЛЕ закрывающей квадратной скобки `]`)
+        if ']' in host:
+            # Например: "[202:68d0:...:3148]:80" -> "[202:68d0:...:3148]"
+            clean_host = host.split(']')[0].substring(1) if host.startsWith('[') else host.split(']')[0]
+            clean_host = host.split(']')[0].strip("[]")
+        else:
+            # Для обычных доменов без скобок (например, i113d.ikote.ru:80) по-прежнему делим по двоеточию
+            clean_host = host.split(':')[0]
 
         try:
+            # Принудительно резолвим имя в IPv6 адреса
             infos = socket.getaddrinfo(clean_host, None, socket.AF_INET6)
             resolved_ips = [info[4][0] for info in infos]
         except Exception as e:
             raise urllib.error.URLError(f"DNS Resolution failed for {clean_host}: {e}")
 
+        # Проверяем абсолютно ВСЕ IP, в которые разрезолвился домен
         for ip in resolved_ips:
             if not is_valid_ygg_ip(ip):
                 raise PermissionError(f"Block: Destination {ip} is outside Yggdrasil subnet!")
 
         return super().do_open(http_class, req, **http_conn_args)
-
+    
 
 safe_opener = urllib.request.build_opener(SafeYggDirector(context=ssl_context))
 urllib.request.install_opener(safe_opener)
