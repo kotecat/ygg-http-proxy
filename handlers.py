@@ -4,8 +4,9 @@ import urllib.request
 import urllib.error
 import datetime
 import os
+import ssl
 import config
-from utils import parse_subdomain
+from utils import parse_subdomain, is_valid_ygg_ip
 
 CLR_TIME = "\033[90m"
 CLR_GET = "\033[92m"
@@ -13,6 +14,9 @@ CLR_POST = "\033[93m"
 CLR_ERR = "\033[91m"
 CLR_RESET = "\033[0m"
 CLR_CYAN = "\033[96m"
+
+# Отключаем валидацию SSL для нод
+ssl_context = ssl._create_unverified_context()
 
 def log_event(method: str, host: str, path: str, status_code: int, extra: str = ""):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -29,12 +33,53 @@ def log_event(method: str, host: str, path: str, status_code: int, extra: str = 
     )
 
 def get_html_content():
-    """Читает указанный в конфиге файл"""
     if os.path.exists(config.HTML_TOOL_PATH):
         with open(config.HTML_TOOL_PATH, "r", encoding="utf-8") as f:
             return f.read(), 200
     else:
-        return f"<h1>404 Not Found</h1><p>File '{config.HTML_TOOL_PATH}' not found on server.</p>", 404
+        return f"<h1>404 Not Found</h1><p>File '{config.HTML_TOOL_PATH}' not found.</p>", 404
+
+
+# --- КРИТИЧЕСКАЯ ЗАЩИТА: КАСТОМНЫЙ БЕЗОПАСНЫЙ КЛИЕНТ ---
+class SafeYggDirector(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
+    """
+    Кастомный обработчик для urllib, который перехватывает запросы,
+    резолвит домены и проверяет, что финальный IP принадлежит Yggdrasil.
+    """
+    def __init__(self, context=None):
+        # Инициализируем оба родительских класса для http и https
+        urllib.request.HTTPHandler.__init__(self)
+        urllib.request.HTTPSHandler.__init__(self, context=context)
+
+    def do_open(self, http_class, req, **http_conn_args):
+        host = req.host
+        if not host:
+            raise urllib.error.URLError("No host intended")
+
+        # Отрезаем порт от хоста для резолва, если он есть
+        clean_host = host.split(':')[0].strip("[]")
+
+        try:
+            # Принудительно резолвим имя в IPv6 адреса
+            infos = socket.getaddrinfo(clean_host, None, socket.AF_INET6)
+            resolved_ips = [info[4][0] for info in infos]
+        except Exception as e:
+            raise urllib.error.URLError(f"DNS Resolution failed for {clean_host}: {e}")
+
+        # Проверяем абсолютно ВСЕ IP, в которые разрезолвился домен
+        for ip in resolved_ips:
+            if not is_valid_ygg_ip(ip):
+                # Если хоть один IP ведет наружу сети Yggdrasil — рубим запрос!
+                raise PermissionError(f"Block: Destination {ip} is outside Yggdrasil subnet!")
+
+        # Если все IP валидны, передаем запрос стандартному механизму urllib
+        return super().do_open(http_class, req, **http_conn_args)
+
+
+# Создаем безопасныйopener и регистрируем его как глобальный для urllib
+safe_opener = urllib.request.build_opener(SafeYggDirector(context=ssl_context))
+urllib.request.install_opener(safe_opener)
+# --------------------------------------------------------
 
 
 class YggProxyHandler(http.server.BaseHTTPRequestHandler):
@@ -43,31 +88,28 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
 
     def handle_proxy(self):
         host_header = self.headers.get('Host', '')
-        target_ip, target_port, display_host = parse_subdomain(host_header)
+        target_ip, target_port, display_host, is_secure = parse_subdomain(host_header)
 
-        # Перехватываем управление для локального HTML
         if not target_ip:
             if config.HTML_TOOL_ENABLED:
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
-                
                 response_html, status = get_html_content()
                 self.wfile.write(response_html.encode('utf-8'))
-                log_event(self.command, host_header, self.path, status, f"(Local HTML: {config.HTML_TOOL_PATH})")
+                log_event(self.command, host_header, self.path, status, f"(Local HTML)")
             else:
                 self.send_response(404)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
-                self.wfile.write("<h1>404 Not Found</h1>".encode('utf-8'))
-                log_event(self.command, host_header, self.path, 404, "(HTML Tool Disabled)")
+                log_event(self.command, host_header, self.path, 404, "(Disabled)")
             return
 
-        # Логика проксирования
+        scheme = "https" if is_secure else "http"
+        
         if ":" in target_ip:
-            target_url = f"http://[{target_ip}]:{target_port}{self.path}"
+            target_url = f"{scheme}://[{target_ip}]:{target_port}{self.path}"
         else:
-            target_url = f"http://{target_ip}:{target_port}{self.path}"
+            target_url = f"{scheme}://{target_ip}:{target_port}{self.path}"
 
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length) if content_length > 0 else None
@@ -80,7 +122,7 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
         req = urllib.request.Request(url=target_url, data=body, headers=req_headers, method=self.command)
 
         try:
-            # Используем типизированный таймаут (int) из конфига
+            # Запрос пойдет через наш safe_opener автоматически
             with urllib.request.urlopen(req, timeout=config.TIMEOUT_SECONDS) as res:
                 self.send_response(res.status)
                 for key, value in res.getheaders():
@@ -88,24 +130,22 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
                         self.send_header(key, value)
                 self.end_headers()
                 self.wfile.write(res.read())
-                log_event(self.command, host_header, self.path, res.status, f"-> Ygg: {display_host}")
+                log_event(self.command, host_header, self.path, res.status, f"-> Ygg ({scheme}): {display_host}")
 
-        except urllib.error.HTTPError as e:
-            self.send_response(e.code)
-            for key, value in e.headers.items():
-                if key.lower() != 'transfer-encoding':
-                    self.send_header(key, value)
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            # Ловим ошибки сети и блокировки
+            status_code = getattr(e, 'code', 502)
+            self.send_response(status_code)
             self.end_headers()
-            self.wfile.write(e.read())
-            log_event(self.command, host_header, self.path, e.code, f"{CLR_ERR}-> HTTP Error from node{CLR_RESET}")
+            
+            err_msg = f"<h1>{status_code} Gateway Error</h1><p>{str(e)}</p>"
+            self.wfile.write(err_msg.encode('utf-8'))
+            log_event(self.command, host_header, self.path, status_code, f"{CLR_ERR}-> Error: {e}{CLR_RESET}")
 
         except Exception as e:
             self.send_response(502)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            err_msg = f"<h1>502 Bad Gateway</h1><p>Node unreachable</p>"
-            self.wfile.write(err_msg.encode('utf-8'))
-            log_event(self.command, host_header, self.path, 502, f"{CLR_ERR}-> Node offline / Connection Reset{CLR_RESET}")
+            log_event(self.command, host_header, self.path, 502, f"{CLR_ERR}-> {type(e).__name__}: {e}{CLR_RESET}")
 
     def do_GET(self): self.handle_proxy()
     def do_POST(self): self.handle_proxy()
