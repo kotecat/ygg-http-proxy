@@ -55,13 +55,12 @@ class SafeYggDirector(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
         if not host:
             raise urllib.error.URLError("No host intended")
 
-        # Правильно отделяем порт от IPv6 (в IPv6 порт идёт ПОСЛЕ закрывающей квадратной скобки `]`)
+        # Если в хосте есть ']', значит это IPv6 (например, "[202:68d0:...:3148]:80")
         if ']' in host:
-            # Например: "[202:68d0:...:3148]:80" -> "[202:68d0:...:3148]"
-            clean_host = host.split(']')[0].substring(1) if host.startsWith('[') else host.split(']')[0]
+            # Отсекаем порт после скобки и убираем сами квадратные скобки
             clean_host = host.split(']')[0].strip("[]")
         else:
-            # Для обычных доменов без скобок (например, i113d.ikote.ru:80) по-прежнему делим по двоеточию
+            # Для обычных доменов (например, i113d.ikote.ru:80) делим по первому двоеточию
             clean_host = host.split(':')[0]
 
         try:
@@ -78,7 +77,7 @@ class SafeYggDirector(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
 
         return super().do_open(http_class, req, **http_conn_args)
     
-
+    
 safe_opener = urllib.request.build_opener(SafeYggDirector(context=ssl_context))
 urllib.request.install_opener(safe_opener)
 # --------------------------------------------------------
