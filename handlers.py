@@ -145,7 +145,9 @@ def make_nginx_error_html(status_code: int, status_text: str, error_details: str
             </div>
             <p class="details">{error_details}</p>
             <hr>
-            <div class="footer">ygg-http-proxy ({provider})</div>
+            <div class="footer">
+                <a href="https://github.com/kotecat/ygg-http-proxy" target="_blank" style="color: #888; text-decoration: none;">ygg-http-proxy</a> ({provider})
+            </div>
         </div>
     </body>
     </html>
