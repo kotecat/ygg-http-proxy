@@ -47,7 +47,6 @@ class SafeYggDirector(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
     резолвит домены и проверяет, что финальный IP принадлежит Yggdrasil.
     """
     def __init__(self, context=None):
-        # Инициализируем оба родительских класса для http и https
         urllib.request.HTTPHandler.__init__(self)
         urllib.request.HTTPSHandler.__init__(self, context=context)
 
@@ -56,27 +55,21 @@ class SafeYggDirector(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
         if not host:
             raise urllib.error.URLError("No host intended")
 
-        # Отрезаем порт от хоста для резолва, если он есть
         clean_host = host.split(':')[0].strip("[]")
 
         try:
-            # Принудительно резолвим имя в IPv6 адреса
             infos = socket.getaddrinfo(clean_host, None, socket.AF_INET6)
             resolved_ips = [info[4][0] for info in infos]
         except Exception as e:
             raise urllib.error.URLError(f"DNS Resolution failed for {clean_host}: {e}")
 
-        # Проверяем абсолютно ВСЕ IP, в которые разрезолвился домен
         for ip in resolved_ips:
             if not is_valid_ygg_ip(ip):
-                # Если хоть один IP ведет наружу сети Yggdrasil — рубим запрос!
                 raise PermissionError(f"Block: Destination {ip} is outside Yggdrasil subnet!")
 
-        # Если все IP валидны, передаем запрос стандартному механизму urllib
         return super().do_open(http_class, req, **http_conn_args)
 
 
-# Создаем безопасныйopener и регистрируем его как глобальный для urllib
 safe_opener = urllib.request.build_opener(SafeYggDirector(context=ssl_context))
 urllib.request.install_opener(safe_opener)
 # --------------------------------------------------------
@@ -192,7 +185,6 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
         req = urllib.request.Request(url=target_url, data=body, headers=req_headers, method=self.command)
 
         try:
-            # Запрос идет через наш safe_opener автоматически
             with urllib.request.urlopen(req, timeout=config.TIMEOUT_SECONDS) as res:
                 self.send_response(res.status)
                 for key, value in res.getheaders():
@@ -203,27 +195,34 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
                 log_event(self.command, host_header, self.path, res.status, f"-> Ygg ({scheme}): {display_host}")
 
         except urllib.error.HTTPError as e:
-            # --- ОШИБКА ОТ САМОГО САЙТА (404, 502, 403 и т.д.) ---
-            # Пытаемся проксировать оригинальный ответ ноды
-            try:
-                remote_err_page = e.read()
-                self.send_response(e.code)
-                for key, value in e.headers.items():
-                    if key.lower() != 'transfer-encoding':
-                        self.send_header(key, value)
-                self.end_headers()
-                self.wfile.write(remote_err_page)
-                log_event(self.command, host_header, self.path, e.code, f"-> Remote Node HTTP Error (Proxied)")
-            except Exception:
-                # Если не удалось прочитать тело ответа ноды, отдаем красивую 400
+            # --- ОШИБКА ОТ САМОГО САЙТА (404, 5xx, 403 и т.д.) ---
+            if e.code >= 500:
+                # Глушим все серверные ошибки (5xx), маскируя под 400 Bad Request
                 self.send_response(400)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
                 
-                details = f"Remote host returned HTTP {e.code}"
+                details = f"Remote Yggdrasil node is online, but its web server returned internal error (HTTP {e.code})."
                 html = make_nginx_error_html(400, "Bad Request", details, "Remote Host")
                 self.wfile.write(html.encode('utf-8'))
-                log_event(self.command, host_header, self.path, 400, f"{CLR_ERR}-> Fail reading remote HTTP {e.code}{CLR_RESET}")
+                log_event(self.command, host_header, self.path, 400, f"{CLR_ERR}-> Overrode Remote 5xx ({e.code}) to 400{CLR_RESET}")
+            else:
+                # 404, 403 и прочие клиентские ошибки отдаем как есть
+                try:
+                    remote_err_page = e.read()
+                    self.send_response(e.code)
+                    for key, value in e.headers.items():
+                        if key.lower() != 'transfer-encoding':
+                            self.send_header(key, value)
+                    self.end_headers()
+                    self.wfile.write(remote_err_page)
+                    log_event(self.command, host_header, self.path, e.code, f"-> Remote Node HTTP Error (Proxied)")
+                except Exception:
+                    self.send_response(400)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.end_headers()
+                    html = make_nginx_error_html(400, "Bad Request", f"Remote host returned HTTP {e.code}", "Remote Host")
+                    self.wfile.write(html.encode('utf-8'))
 
         except (urllib.error.URLError, PermissionError) as e:
             # --- ОШИБКА НАШЕЙ ПРОКСИ (Сайт оффлайн, упал DNS, блок чужой подсети) ---
@@ -231,7 +230,6 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             
-            # Парсим причину для вывода на английском
             reason = str(e.reason) if hasattr(e, 'reason') else str(e)
             if "outside Yggdrasil" in reason:
                 details = "Access denied: Target IP address is outside the allowed Yggdrasil subnet."
@@ -262,3 +260,4 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
     def do_OPTIONS(self): self.handle_proxy()
     def do_HEAD(self): self.handle_proxy()
     def do_PATCH(self): self.handle_proxy()
+    
