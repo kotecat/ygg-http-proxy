@@ -1,0 +1,9 @@
+services:
+  ygg-http-proxy:
+    build: .
+    network_mode: host
+    restart: always
+    volumes:
+      - .:/app
+    env_file:
+      - .env
