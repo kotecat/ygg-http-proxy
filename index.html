@@ -34,14 +34,15 @@
             color: var(--text-color);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
-            padding: 40px 20px;
+            padding: 60px 20px;
             display: flex;
             justify-content: center;
             transition: background-color 0.3s, color 0.3s;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
-            max-width: 650px;
+            max-width: 750px; /* Слегка расширили контейнер для длинных ссылок */
             width: 100%;
         }
 
@@ -49,71 +50,77 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
             border-bottom: 1px solid var(--border-color);
-            padding-bottom: 20px;
+            padding-bottom: 24px;
         }
 
         h1 {
-            font-size: 24px;
-            font-weight: 600;
+            font-size: 32px; /* Было 24px */
+            font-weight: 700;
             margin: 0;
         }
 
         .controls {
             display: flex;
-            gap: 10px;
+            gap: 12px;
         }
 
         button.btn-toggle {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             color: var(--text-color);
-            padding: 8px 14px;
-            border-radius: 6px;
+            padding: 10px 18px; /* Увеличили кнопки темы/языка */
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
+            font-size: 15px; /* Было 13px */
+            font-weight: 600;
             transition: all 0.2s;
         }
 
         button.btn-toggle:hover {
             border-color: var(--text-color);
+            background-color: var(--code-bg);
         }
 
         .card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
+            border-radius: 12px;
+            padding: 32px; /* Было 24px — больше внутренних отступов */
+            margin-bottom: 32px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+        }
+        
+        [data-theme="dark"] .card {
+            box-shadow: none;
         }
 
         h2 {
-            font-size: 18px;
-            font-weight: 500;
+            font-size: 24px; /* Было 18px */
+            font-weight: 600;
             margin-top: 0;
-            margin-bottom: 14px;
+            margin-bottom: 18px;
         }
 
         p {
-            font-size: 14px;
+            font-size: 16px; /* Было 14px */
             line-height: 1.6;
             color: var(--text-muted);
-            margin: 0 0 12px 0;
+            margin: 0 0 16px 0;
         }
 
         code {
             font-family: monospace;
             background: var(--code-bg);
-            padding: 2px 6px;
-            border-radius: 4px;
+            padding: 3px 8px;
+            border-radius: 6px;
             color: var(--text-color);
-            font-size: 13px;
+            font-size: 15px; /* Было 13px */
         }
 
         .converter-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .converter-group:last-of-type {
@@ -122,9 +129,9 @@
 
         label {
             display: block;
-            font-size: 13px;
-            font-weight: 500;
-            margin-bottom: 6px;
+            font-size: 15px; /* Было 13px */
+            font-weight: 600;
+            margin-bottom: 10px;
         }
 
         input[type="text"] {
@@ -133,29 +140,30 @@
             background: var(--input-bg);
             border: 1px solid var(--border-color);
             color: var(--text-color);
-            padding: 12px;
-            border-radius: 6px;
-            font-size: 14px;
+            padding: 16px; /* Было 12px — теперь инпуты стали массивными и удобными */
+            border-radius: 8px;
+            font-size: 16px; /* Было 14px */
             font-family: monospace;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
 
         input[type="text"]:focus {
             border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.15);
             outline: none;
         }
 
         .result-box {
-            margin-top: 8px;
-            min-height: 20px;
-            font-size: 14px;
+            margin-top: 14px;
+            min-height: 24px;
+            font-size: 16px; /* Было 14px — ссылки стали гораздо заметнее */
             word-break: break-all;
         }
 
         .result-box a {
             color: var(--accent-color);
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 600;
             font-family: monospace;
         }
 
@@ -167,14 +175,14 @@
         .result-box .placeholder {
             color: var(--text-muted);
             font-style: italic;
-            font-size: 13px;
+            font-size: 15px; /* Было 13px */
         }
 
         .footer {
             text-align: center;
-            font-size: 12px;
+            font-size: 14px;
             color: var(--text-muted);
-            margin-top: 40px;
+            margin-top: 60px;
             font-family: monospace;
         }
     </style>
@@ -193,7 +201,6 @@
     <div class="card">
         <h2 id="about-title">О шлюзе</h2>
         <p id="about-p1">Этот прокси-сервер позволяет получать доступ к сайтам внутри независимой сети <code>Yggdrasil</code> из обычного интернета без необходимости устанавливать клиент сети.</p>
-        <p id="about-p2">Шлюз полностью изолирован: он строго проверяет входящие запросы и маршрутизирует трафик только внутри доверенной подсети <code>200::/7</code>, блокируя любые попытки использования сервера в качестве публичной веб-прокси.</p>
     </div>
 
     <div class="card">
@@ -211,7 +218,7 @@
 
         <div class="converter-group">
             <label id="lbl-web2ygg">Ввод: Ссылка через наш шлюз (Из адресной строки)</label>
-            <input type="text" id="input-web" placeholder="example-ygg.ikote.ru, 200-bebe...-s-p8443.ikote.ru">
+            <input type="text" id="input-web" placeholder="example.ikote.ru, 200-bebe...-s-p8443.ikote.ru">
             <div class="result-box" id="res-ygg">
                 <span class="placeholder" id="ph-ygg">Здесь появится чистый адрес внутри сети Yggdrasil...</span>
             </div>
@@ -222,44 +229,39 @@
 </div>
 
 <script>
-    // Текущий суффикс твоего домена
     const GATEWAY_DOMAIN = "ikote.ru";
 
-    // Локализация
+    // Полный и точный словарь локализации для всех элементов
     const i18n = {
         ru: {
-            title: "Yggdrasil Шлюз",
+            title: "Yggdrasil Proxy",
             aboutTitle: "О шлюзе",
             aboutP1: "Этот прокси-сервер позволяет получать доступ к сайтам внутри независимой сети <code>Yggdrasil</code> из обычного интернета без необходимости устанавливать клиент сети.",
-            aboutP2: "Шлюз полностью изолирован: он строго проверяет входящие запросы и маршрутизирует трафик только внутри доверенной подсети <code>200::/7</code>, блокируя любые попытки использования сервера в качестве публичной веб-прокси.",
             convTitle: "Двусторонний конвертер адресов",
             lblYgg2Web: "Ввод: Адрес внутри Yggdrasil (Домен или IPv6)",
             lblWeb2Ygg: "Ввод: Ссылка через наш шлюз (Из адресной строки)",
             phWeb: "Здесь появится ссылка для обычного браузера...",
             phYgg: "Здесь появится чистый адрес внутри сети Yggdrasil...",
             inputYggPl: "example.ygg, [200::bebe]:8443, https://site.ygg",
-            inputWebPl: "example-ygg.ikote.ru, 200-bebe...-s-p8443.ikote.ru"
+            inputWebPl: "example.ikote.ru, 200-bebe...-s-p8443.ikote.ru"
         },
         en: {
-            title: "Yggdrasil Gateway",
+            title: "Yggdrasil Proxy",
             aboutTitle: "About Gateway",
             aboutP1: "This proxy server allows you to access websites inside the independent <code>Yggdrasil</code> network from the regular Internet without installing a local client.",
-            aboutP2: "The gateway is fully isolated: it strictly validates incoming requests and routes traffic exclusively within the trusted <code>200::/7</code> subnet, blocking any attempts to use it as a public web proxy.",
             convTitle: "Two-way Address Converter",
             lblYgg2Web: "Input: Yggdrasil Address (Domain or IPv6)",
             lblWeb2Ygg: "Input: Gateway Link (From your address bar)",
             phWeb: "Public web link will appear here...",
             phYgg: "Clean Yggdrasil address will appear here...",
             inputYggPl: "example.ygg, [200::bebe]:8443, https://site.ygg",
-            inputWebPl: "example-ygg.ikote.ru, 200-bebe...-s-p8443.ikote.ru"
+            inputWebPl: "example.ikote.ru, 200-bebe...-s-p8443.ikote.ru"
         }
     };
 
-    // Переменные состояния
     let currentLang = localStorage.getItem('ygg_lang') || 'ru';
     let currentTheme = localStorage.getItem('ygg_theme') || 'light';
 
-    // Элементы DOM
     const themeToggle = document.getElementById('theme-toggle');
     const langToggle = document.getElementById('lang-toggle');
     const inputYgg = document.getElementById('input-ygg');
@@ -267,32 +269,36 @@
     const resWeb = document.getElementById('res-web');
     const resYgg = document.getElementById('res-ygg');
 
-    // Функция переключения темы
     function applyTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
         themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
         localStorage.setItem('ygg_theme', theme);
     }
 
-    // Функция переключения языка
     function applyLang(lang) {
         currentLang = lang;
         localStorage.setItem('ygg_lang', lang);
+        
+        // Кнопка показывает язык, на который можно ПЕРЕКЛЮЧИТЬСЯ
         langToggle.textContent = lang === 'ru' ? 'EN' : 'RU';
         
+        // Переводим абсолютно всё по ID
         document.getElementById('main-title').innerHTML = i18n[lang].title;
         document.getElementById('about-title').innerHTML = i18n[lang].aboutTitle;
         document.getElementById('about-p1').innerHTML = i18n[lang].aboutP1;
-        document.getElementById('about-p2').innerHTML = i18n[lang].aboutP2;
         document.getElementById('conv-title').innerHTML = i18n[lang].convTitle;
         document.getElementById('lbl-ygg2web').innerHTML = i18n[lang].lblYgg2Web;
         document.getElementById('lbl-web2ygg').innerHTML = i18n[lang].lblWeb2Ygg;
+        
         inputYgg.placeholder = i18n[lang].inputYggPl;
         inputWeb.placeholder = i18n[lang].inputWebPl;
         
-        // Обновляем плейсхолдеры в результатах, если поля пустые
-        if(!inputYgg.value) resWeb.innerHTML = `<span class="placeholder">${i18n[lang].phWeb}</span>`;
-        if(!inputWeb.value) resYgg.innerHTML = `<span class="placeholder">${i18n[lang].phYgg}</span>`;
+        // Обновляем текст заглушек динамически
+        const placeholderWeb = resWeb.querySelector('.placeholder');
+        if (placeholderWeb) placeholderWeb.textContent = i18n[lang].phWeb;
+        
+        const placeholderYgg = resYgg.querySelector('.placeholder');
+        if (placeholderYgg) placeholderYgg.textContent = i18n[lang].phYgg;
     }
 
     themeToggle.addEventListener('click', () => {
@@ -304,14 +310,11 @@
         applyLang(currentLang === 'ru' ? 'en' : 'ru');
     });
 
-    // Инициализация интерфейса
+    // Первичный запуск — теперь всё применится синхронно
     applyTheme(currentTheme);
     applyLang(currentLang);
 
-
-   // --- ЛОГИКА КОНВЕРТЕРА ССЫЛОК ---
-
-    // 1. Из Свободного Yggdrasil в Наш Публичный Веб-Адрес
+    // --- ЛОГИКА КОНВЕРТЕРА ССЫЛОК ---
     inputYgg.addEventListener('input', (e) => {
         let val = e.target.value.trim();
         if (!val) {
@@ -319,7 +322,6 @@
             return;
         }
 
-        // Автодополнение схемы, если её забыли ввести
         if (!/^https?:\/\//i.test(val)) {
             val = "http://" + val;
         }
@@ -332,35 +334,29 @@
             let path = url.pathname + url.search + url.hash;
 
             let isSecure = scheme === "https";
-            let cleanNode = host.replace(/[\[\]]/g, ""); // Убираем квадраты IPv6
+            let cleanNode = host.replace(/[\[\]]/g, "");
 
             let subdomain = "";
 
             if (cleanNode.includes(":") || (cleanNode.startsWith("200") && cleanNode.length > 15)) {
-                // Это чистый IPv6 адрес
                 subdomain = cleanNode.replace(/:/g, "-");
             } else {
-                // Это текстовый домен (убираем .ygg, если он был введен)
                 let rawName = cleanNode;
                 if (rawName.endsWith(".ygg")) {
                     rawName = rawName.slice(0, -4);
                 }
-                // Маскируем дефисы, а точки превращаем в одиночные дефисы
                 let protectedName = rawName.replace(/-/g, "--");
                 subdomain = protectedName.replace(/\./g, "-");
             }
 
-            // Навешиваем суффикс безопасности
             if (isSecure) {
                 subdomain += "-s";
             }
 
-            // Добавляем порт, если он кастомный
             if (port && !((port === "80" && !isSecure) || (port === "443" && isSecure))) {
                 subdomain += "-p" + port;
             }
 
-            // Собираем финальный URL через прокси
             let finalWebUrl = `https://${subdomain}.${GATEWAY_DOMAIN}${path}`;
             resWeb.innerHTML = `<a href="${finalWebUrl}" target="_blank">${finalWebUrl}</a>`;
 
@@ -369,7 +365,6 @@
         }
     });
 
-    // 2. Из Нашего Веб-Адреса Обратно в Чистый Yggdrasil
     inputWeb.addEventListener('input', (e) => {
         let val = e.target.value.trim();
         if (!val) {
@@ -402,14 +397,12 @@
             let targetPort = null;
             let isSecure = false;
 
-            // Вытаскиваем порт (-p)
             if (subdomain.includes("-p")) {
                 let parts = subdomain.split("-p");
                 targetPort = parts[1];
                 subdomain = parts[0];
             }
 
-            // Вытаскиваем маркеры безопасности
             if (subdomain.endsWith("-secure")) {
                 isSecure = true;
                 subdomain = subdomain.slice(0, -7);
@@ -425,16 +418,13 @@
             let finalYggAddress = "";
 
             if (subdomain.startsWith("200-") && !subdomain.includes("--")) {
-                // Восстанавливаем сырой IPv6
                 let ip = subdomain.replace(/-/g, ":");
                 finalYggAddress = `http${isSecure?'s':''}://[${ip}]:${targetPort}${path}`;
             } else {
-                // Восстанавливаем текстовый домен (убирая рудименты -ygg, если они вдруг прилетят из старых ссылок)
                 if (subdomain.endsWith("-ygg")) {
                     subdomain = subdomain.slice(0, -4);
                 }
                 
-                // Восстанавливаем структуру точек и дефисов
                 let restored = subdomain.replace(/([^-])-([^-])/g, "$1.$2");
                 restored = restored.replace(/--/g, "-");
                 restored = restored.replace(/-/g, ".");
@@ -449,6 +439,3 @@
         }
     });
 </script>
-
-</body>
-</html>
