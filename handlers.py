@@ -134,7 +134,7 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
 
         except (urllib.error.HTTPError, urllib.error.URLError) as e:
             # Ловим ошибки сети и блокировки
-            status_code = getattr(e, 'code', 502)
+            status_code = getattr(e, 'code', 400)
             self.send_response(status_code)
             self.end_headers()
             
@@ -143,9 +143,9 @@ class YggProxyHandler(http.server.BaseHTTPRequestHandler):
             log_event(self.command, host_header, self.path, status_code, f"{CLR_ERR}-> Error: {e}{CLR_RESET}")
 
         except Exception as e:
-            self.send_response(502)
+            self.send_response(400)
             self.end_headers()
-            log_event(self.command, host_header, self.path, 502, f"{CLR_ERR}-> {type(e).__name__}: {e}{CLR_RESET}")
+            log_event(self.command, host_header, self.path, 400, f"{CLR_ERR}-> {type(e).__name__}: {e}{CLR_RESET}")
 
     def do_GET(self): self.handle_proxy()
     def do_POST(self): self.handle_proxy()
