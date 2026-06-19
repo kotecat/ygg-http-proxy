@@ -84,6 +84,7 @@ def parse_subdomain(host_header: str) -> tuple:
 if __name__ == "__main__":
     # Тестируем валидацию подсети
     test_hosts = [
+        "lib-kote.ikote.ru",
         "200-bebe-a335-e048-85fe-5f9a-ea30-bebe.ikote.ru", # Валидный Yggdrasil IPv6
         "2a00-1450-4010-c0d-0-0-0-65.ikote.ru",             # Злоумышленник: IPv6 Гугла (должен заблочить!)
         "0-0-0-0-0-0-0-1.ikote.ru",                         # Злоумышленник: Локалхост ::1 (должен заблочить!)

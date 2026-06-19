@@ -55,23 +55,33 @@ class SafeYggDirector(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
         if not host:
             raise urllib.error.URLError("No host intended")
 
-        # Если в хосте есть ']', значит это IPv6 (например, "[202:68d0:...:3148]:80")
         if ']' in host:
-            # Отсекаем порт после скобки и убираем сами квадратные скобки
             clean_host = host.split(']')[0].strip("[]")
         else:
-            # Для обычных доменов (например, i113d.ikote.ru:80) делим по первому двоеточию
             clean_host = host.split(':')[0]
+            
+        import ipaddress
+
+        # --- ЗАЩИТА ОТ ПЕТЛИ ШЛЮЗА ---
+        # Если внутренний запрос идёт на сам домен шлюза, разрешаем его без проверок IP
+        if config.GATEWAY_DOMAIN in clean_host or "ikote.ru" in clean_host:
+            return super().do_open(http_class, req, **http_conn_args)
 
         try:
-            # Принудительно резолвим имя в IPv6 адреса
             infos = socket.getaddrinfo(clean_host, None, socket.AF_INET6)
             resolved_ips = [info[4][0] for info in infos]
         except Exception as e:
             raise urllib.error.URLError(f"DNS Resolution failed for {clean_host}: {e}")
 
-        # Проверяем абсолютно ВСЕ IP, в которые разрезолвился домен
         for ip in resolved_ips:
+            # Разрешаем loopback
+            try:
+                ip_obj = ipaddress.import_module('ipaddress').ip_address(ip)
+                if ip_obj.is_loopback:
+                    continue
+            except Exception:
+                pass
+
             if not is_valid_ygg_ip(ip):
                 raise PermissionError(f"Block: Destination {ip} is outside Yggdrasil subnet!")
 
