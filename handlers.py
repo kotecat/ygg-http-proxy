@@ -87,8 +87,18 @@ class SafeYggDirector(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
 
         return super().do_open(http_class, req, **http_conn_args)
     
+
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Возвращаем None, чтобы остановить автоматический переход.
+        # urllib выкинет исключение HTTPError (301/302), которое мы поймаем и отдадим клиенту как есть.
+        return None
     
-safe_opener = urllib.request.build_opener(SafeYggDirector(context=ssl_context))
+
+safe_opener = urllib.request.build_opener(
+    SafeYggDirector(context=ssl_context),
+    NoRedirectHandler()
+)
 urllib.request.install_opener(safe_opener)
 # --------------------------------------------------------
 
