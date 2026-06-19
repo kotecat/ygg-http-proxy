@@ -64,7 +64,7 @@ class SafeYggDirector(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
 
         # --- ЗАЩИТА ОТ ПЕТЛИ ШЛЮЗА ---
         # Если внутренний запрос идёт на сам домен шлюза, разрешаем его без проверок IP
-        if config.GATEWAY_DOMAIN in clean_host or "ikote.ru" in clean_host:
+        if config.DOMAIN_SUFFIX in clean_host:
             return super().do_open(http_class, req, **http_conn_args)
 
         try:
